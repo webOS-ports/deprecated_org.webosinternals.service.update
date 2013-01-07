@@ -82,7 +82,36 @@ bool service_check_for_update_cb(LSHandle *handle, LSMessage *message, void *use
 
 bool service_list_upgradable_packages_cb(LSHandle *handle, LSMessage *message, void *user_data)
 {
-	luna_service_message_reply_error_not_implemented(handle, message);
+	struct package_list_info plistinfo;
+	GSList *iter;
+	jvalue_ref reply_obj = NULL;
+	jvalue_ref pkglist_obj = NULL;
+	jvalue_ref pkgname_obj = NULL;
+
+	plistinfo.pkgs = g_slist_alloc();
+	opkg_list_upgradable_packages(upgradable_package_list_cb, &plistinfo);
+
+	reply_obj = jobject_create();
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
+
+	pkglist_obj = jarray_create(NULL);
+
+	for (iter = plistinfo.pkgs; iter != NULL; iter = g_slist_next(iter)) {
+		if (iter->data != NULL) {
+			gchar *pkgname = iter->data;
+			pkgname_obj = jstring_create(pkgname);
+			jarray_append(pkglist_obj, pkgname_obj);
+		}
+	}
+
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("upgradablePackages"), pkglist_obj);
+
+	if(!luna_service_message_validate_and_send(handle, message, reply_obj))
+		luna_service_message_reply_error_internal(handle, message);
+
+	j_release(&reply_obj);
+	g_slist_free_full(plistinfo.pkgs, g_free);
+
 	return true;
 }
 
