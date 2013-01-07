@@ -1,0 +1,14 @@
+{
+	"role": {
+		"allowedNames": ["org.webosinternals.service.update"],
+		"type": "regular",
+		"exeName": "js"
+	},
+	"permissions": [
+		{
+			"inbound": ["*"],
+			"outbound": ["*"],
+			"service": "org.webosinternals.service.update"
+		}
+	]
+}
