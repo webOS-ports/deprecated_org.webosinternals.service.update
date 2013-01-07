@@ -75,7 +75,7 @@ static LSMethod service_methods[]  = {
 	{ 0, 0 }
 };
 
-static int initialize_luna_service(struct telephony_service *service)
+static int initialize_luna_service(void)
 {
 	LSError error;
 
@@ -84,7 +84,7 @@ static int initialize_luna_service(struct telephony_service *service)
 	LSErrorInit(&error);
 
 	if (!LSPalmServiceRegisterCategory(palm_service_handle, "/", NULL, service_methods,
-			NULL, service, &error)) {
+			NULL, NULL, &error)) {
 		g_warning("Could not register service category");
 		LSErrorFree(&error);
 		return -EIO;
@@ -93,7 +93,7 @@ static int initialize_luna_service(struct telephony_service *service)
 	return 0;
 }
 
-static void shutdown_luna_service(struct telephony_service *service)
+static void shutdown_luna_service(void)
 {
 	g_message("Shutting down luna service ...");
 }
