@@ -32,6 +32,10 @@ pkg_check_modules(PBNJSON_C REQUIRED pbnjson_c)
 include_directories(${PBNJSON_C_INCLUDE_DIRS})
 webos_add_compiler_flags(ALL ${PBNJSON_C_CFLAGS_OTHER})
 
+pkg_check_modules(LIBOPKG REQUIRED libopkg)
+include_directories(${LIBOPKG_INCLUDE_DIRS})
+webos_add_compiler_flags(ALL ${LIBOPKG_CFLAGS_OTHER})
+
 file(GLOB SOURCE_FILES src/*.c)
 
 webos_add_compiler_flags(ALL -Wall)
@@ -41,7 +45,7 @@ add_executable(org.webosinternals.service.update ${SOURCE_FILES})
 target_link_libraries(org.webosinternals.service.update
     ${GLIB2_LDFLAGS} ${LUNASERVICE2_LDFLAGS} ${PBNJSON_C_LDFLAGS}
     ${GIO2_LDFLAGS} ${GIO-UNIX_LDFLAGS} ${GOBJECT2_LDFLAGS}
-    rt pthread)
+    ${LIBOPKG_LDFLAGS} rt pthread)
 
 webos_build_daemon()
 webos_build_system_bus_files()

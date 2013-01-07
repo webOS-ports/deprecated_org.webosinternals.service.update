@@ -28,6 +28,8 @@
 #include <luna-service2/lunaservice.h>
 #include <glib.h>
 
+#include <opkg.h>
+
 #include "luna_service_utils.h"
 
 static GMainLoop *mainloop = NULL;
@@ -118,6 +120,11 @@ int main(int argc, char **argv)
 	signal(SIGTERM, signal_term_handler);
 	signal(SIGINT, signal_term_handler);
 
+	if (opkg_new()) {
+		g_warning("Failed to initialize libopkg, aborting ...");
+		exit(1);
+	}
+
 	mainloop = g_main_loop_new(NULL, FALSE);
 
 	LSErrorInit(&lserror);
@@ -151,6 +158,8 @@ cleanup:
 	g_source_remove(signal);
 
 	g_main_loop_unref(mainloop);
+
+	opkg_free();
 
 	return 0;
 }
