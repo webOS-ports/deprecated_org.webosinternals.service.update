@@ -129,30 +129,54 @@ bool service_list_upgradable_packages_cb(LSHandle *handle, LSMessage *message, v
 	return true;
 }
 
-bool service_execute_update_cb(LSHandle *handle, LSMessage *message, void *user_data)
+const char* opkg_action_to_string(int action)
 {
-	luna_service_message_reply_error_not_implemented(handle, message);
-	return true;
+	switch (action) {
+		case OPKG_INSTALL:
+			return "install";
+		case OPKG_DOWNLOAD:
+			return "download";
+		case OPKG_REMOVE:
+			return "remove";
+		default:
+			break;
+	}
+
+	return "unknown";
 }
 
-bool service_set_update_check_interval_cb(LSHandle *handle, LSMessage *message, void *user_data)
+void system_upgrade_progress_cb(const opkg_progress_data_t *progress, void *user_data)
 {
-	luna_service_message_reply_error_not_implemented(handle, message);
-	return true;
+	g_message("[%i%] %s %s", progress->percentage, opkg_action_to_string(progress->action), progress->pkg->name);
 }
 
-bool service_get_status_cb(LSHandle *handle, LSMessage *message, void *user_data)
+bool service_run_upgrade_cb(LSHandle *handle, LSMessage *message, void *user_data)
 {
-	luna_service_message_reply_error_not_implemented(handle, message);
+	g_message("User requested starting a complete system upgrade ...");
+
+	if (opkg_new()) {
+		luna_service_message_reply_error_internal(handle, message);
+		return true;
+	}
+
+	if (opkg_upgrade_all(system_upgrade_progress_cb, NULL) != 0) {
+		luna_service_message_reply_custom_error(handle, message, "Failed to upgrade the system");
+		return true;
+	}
+
+	luna_service_message_reply_success(handle, message);
+
+	opkg_free();
+
+	g_message("Successfully finished system upgrade!");
+
 	return true;
 }
 
 static LSMethod service_methods[]  = {
 	{ "checkForUpdate", service_check_for_update_cb },
 	{ "listUpgradablePackages", service_list_upgradable_packages_cb },
-	{ "executeUpdate", service_execute_update_cb },
-	{ "setUpdateCheckInterval", service_set_update_check_interval_cb },
-	{ "getStatus", service_get_status_cb },
+	{ "runUpgrade", service_run_upgrade_cb },
 	{ 0, 0 }
 };
 
