@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.webosinternals.service.update
+Exec=@WEBOS_INSTALL_SBINDIR@/org.webosinternals.service.update
+Type=static

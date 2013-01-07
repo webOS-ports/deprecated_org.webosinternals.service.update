@@ -2,7 +2,7 @@
 	"role": {
 		"allowedNames": ["org.webosinternals.service.update"],
 		"type": "regular",
-		"exeName": "js"
+		"exeName": "@WEBOS_INSTALL_SBINDIR@/org.webosinternals.service.update"
 	},
 	"permissions": [
 		{
