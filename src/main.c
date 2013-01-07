@@ -36,9 +36,47 @@ static GMainLoop *mainloop = NULL;
 static LSHandle* private_service_handle = NULL;
 static LSPalmService *palm_service_handle = NULL;
 
+struct package_list_info {
+	bool reboot_needed;
+	GSList *pkgs;
+};
+
+void upgradable_package_list_cb(pkg_t *pkg, void *data)
+{
+	struct package_list_info *plistinfo = data;
+
+	/* FIXME check package if it needs a reboot */
+	plistinfo->reboot_needed = false;
+	plistinfo->pkgs = g_slist_append(plistinfo->pkgs, g_strdup(pkg->name));
+}
+
 bool service_check_for_update_cb(LSHandle *handle, LSMessage *message, void *user_data)
 {
-	luna_service_message_reply_error_not_implemented(handle, message);
+	int err = 0;
+	struct package_list_info plistinfo;
+	GSList *iter;
+	jvalue_ref reply_obj = NULL;
+
+	err = opkg_update_package_lists(NULL, NULL);
+	if (err != 0) {
+		luna_service_message_reply_custom_error(handle, message, "Failed to update package list from configured feeds");
+		return true;
+	}
+
+	plistinfo.pkgs = g_slist_alloc();
+	opkg_list_upgradable_packages(upgradable_package_list_cb, &plistinfo);
+
+	reply_obj = jobject_create();
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("updatesAvailable"),
+				jboolean_create(g_slist_length(plistinfo.pkgs) > 0));
+
+	if(!luna_service_message_validate_and_send(handle, message, reply_obj))
+		luna_service_message_reply_error_internal(handle, message);
+
+	j_release(&reply_obj);
+	g_slist_free_full(plistinfo.pkgs, g_free);
+
 	return true;
 }
 
