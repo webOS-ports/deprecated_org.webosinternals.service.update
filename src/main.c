@@ -57,6 +57,11 @@ bool service_check_for_update_cb(LSHandle *handle, LSMessage *message, void *use
 	GSList *iter;
 	jvalue_ref reply_obj = NULL;
 
+	if (opkg_new()) {
+		luna_service_message_reply_error_internal(handle, message);
+		return true;
+	}
+
 	err = opkg_update_package_lists(NULL, NULL);
 	if (err != 0) {
 		luna_service_message_reply_custom_error(handle, message, "Failed to update package list from configured feeds");
@@ -77,6 +82,8 @@ bool service_check_for_update_cb(LSHandle *handle, LSMessage *message, void *use
 	j_release(&reply_obj);
 	g_slist_free_full(plistinfo.pkgs, g_free);
 
+	opkg_free();
+
 	return true;
 }
 
@@ -87,6 +94,11 @@ bool service_list_upgradable_packages_cb(LSHandle *handle, LSMessage *message, v
 	jvalue_ref reply_obj = NULL;
 	jvalue_ref pkglist_obj = NULL;
 	jvalue_ref pkgname_obj = NULL;
+
+	if (opkg_new()) {
+		luna_service_message_reply_error_internal(handle, message);
+		return true;
+	}
 
 	plistinfo.pkgs = g_slist_alloc();
 	opkg_list_upgradable_packages(upgradable_package_list_cb, &plistinfo);
@@ -111,6 +123,8 @@ bool service_list_upgradable_packages_cb(LSHandle *handle, LSMessage *message, v
 
 	j_release(&reply_obj);
 	g_slist_free_full(plistinfo.pkgs, g_free);
+
+	opkg_free();
 
 	return true;
 }
@@ -187,11 +201,6 @@ int main(int argc, char **argv)
 	signal(SIGTERM, signal_term_handler);
 	signal(SIGINT, signal_term_handler);
 
-	if (opkg_new()) {
-		g_warning("Failed to initialize libopkg, aborting ...");
-		exit(1);
-	}
-
 	mainloop = g_main_loop_new(NULL, FALSE);
 
 	LSErrorInit(&lserror);
@@ -225,8 +234,6 @@ cleanup:
 	g_source_remove(signal);
 
 	g_main_loop_unref(mainloop);
-
-	opkg_free();
 
 	return 0;
 }
