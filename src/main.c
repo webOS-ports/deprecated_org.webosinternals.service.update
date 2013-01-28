@@ -147,11 +147,29 @@ const char* opkg_action_to_string(int action)
 
 void system_upgrade_progress_cb(const opkg_progress_data_t *progress, void *user_data)
 {
-	g_message("[%i%] %s %s", progress->percentage, opkg_action_to_string(progress->action), progress->pkg->name);
+	struct luna_service_req_data *req_data = user_data;
+	jvalue_ref reply_obj = NULL;
+
+	if (progress && progress->pkg) {
+		g_message("[%i%] %s %s", progress->percentage, opkg_action_to_string(progress->action), progress->pkg->name);
+
+		reply_obj = jobject_create();
+
+		jobject_put(reply_obj, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
+		jobject_put(reply_obj, J_CSTR_TO_JVAL("state"), jstring_create("inprogress"));
+		jobject_put(reply_obj, J_CSTR_TO_JVAL("action"), jstring_create(opkg_action_to_string(progress->action)));
+		jobject_put(reply_obj, J_CSTR_TO_JVAL("package"), jstring_create(progress->pkg->name));
+
+		luna_service_message_validate_and_send(req_data->handle, req_data->message, reply_obj);
+	}
 }
 
 bool service_run_upgrade_cb(LSHandle *handle, LSMessage *message, void *user_data)
 {
+	struct luna_service_req_data *req_data;
+	jvalue_ref reply_obj;
+	bool upgrade_succeeded = true;
+
 	g_message("User requested starting a complete system upgrade ...");
 
 	if (opkg_new()) {
@@ -159,16 +177,30 @@ bool service_run_upgrade_cb(LSHandle *handle, LSMessage *message, void *user_dat
 		return true;
 	}
 
-	if (opkg_upgrade_all(system_upgrade_progress_cb, NULL) != 0) {
-		luna_service_message_reply_custom_error(handle, message, "Failed to upgrade the system");
-		return true;
+	req_data = luna_service_req_data_new(handle, message);
+
+	if (opkg_upgrade_all(system_upgrade_progress_cb, req_data) != 0) {
+		g_warning("Failed to upgrade the system");
+		upgrade_succeeded = false;
 	}
 
-	luna_service_message_reply_success(handle, message);
+	reply_obj = jobject_create();
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("returnValue"), jboolean_create(upgrade_succeeded));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("state"), jstring_create(upgrade_succeeded ? "finished" : "failed"));
+
+	if (!luna_service_message_validate_and_send(req_data->handle, req_data->message, reply_obj)) {
+		luna_service_message_reply_error_internal(req_data->handle, req_data->message);
+		goto cleanup;
+	}
+
+	if (upgrade_succeeded)
+		g_message("Successfully finished system upgrade!");
+
+cleanup:
+	if (req_data)
+		luna_service_req_data_free(req_data);
 
 	opkg_free();
-
-	g_message("Successfully finished system upgrade!");
 
 	return true;
 }
