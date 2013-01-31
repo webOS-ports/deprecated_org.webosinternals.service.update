@@ -205,10 +205,76 @@ cleanup:
 	return true;
 }
 
+bool service_retrieve_package_info_cb(LSHandle *handle, LSMessage *message, void *user_data)
+{
+	jvalue_ref reply_obj;
+	jvalue_ref parsed_obj;
+	jvalue_ref name_obj;
+	jvalue_ref depends_obj;
+	jvalue_ref recommends_obj;
+	jvalue_ref conflicts_obj;
+	pkg_t *package = NULL;
+	const char *payload = NULL;
+	const char *pkgname = NULL;
+	raw_buffer name_buf;
+	int n;
+
+	payload = LSMessageGetPayload(message);
+	parsed_obj = luna_service_message_parse_and_validate(payload);
+	if (jis_null(parsed_obj)) {
+		luna_service_message_reply_error_bad_json(handle, message);
+		return true;
+	}
+
+	if (!jobject_get_exists(parsed_obj, J_CSTR_TO_BUF("name"), &name_obj)) {
+		luna_service_message_reply_error_bad_json(handle, message);
+		return true;
+	}
+
+	if (opkg_new()) {
+		luna_service_message_reply_error_internal(handle, message);
+		return true;
+	}
+
+	name_buf = jstring_get(name_obj);
+	package = opkg_find_package(name_buf.m_str, NULL, NULL, NULL);
+
+	if (!package) {
+		luna_service_message_reply_custom_error(handle, message, "Package does not exist");
+		goto cleanup;
+	}
+
+	set_flags_from_control(package);
+
+	reply_obj = jobject_create();
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("returnValue"), jboolean_create(true));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("version"), jstring_create(package->version ? package->version : ""));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("revision"), jstring_create(package->revision ? package->revision : ""));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("architecture"), jstring_create(package->architecture ? package->architecture : ""));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("section"), jstring_create(package->section ? package->section : ""));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("maintainer"), jstring_create(package->maintainer ? package->maintainer : ""));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("description"), jstring_create(package->description ? package->description : ""));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("tags"), jstring_create(package->tags ? package->tags : ""));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("size"), jnumber_create_i32(package->size));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("installed_size"), jnumber_create_i32(package->installed_size));
+	jobject_put(reply_obj, J_CSTR_TO_JVAL("auto_installed"), jboolean_create(package->auto_installed > 0 ? true : false));
+
+	if (!luna_service_message_validate_and_send(handle, message, reply_obj)) {
+		luna_service_message_reply_error_internal(handle, message);
+		goto cleanup;
+	}
+
+cleanup:
+	opkg_free();
+
+	return true;
+}
+
 static LSMethod service_methods[]  = {
 	{ "checkForUpdate", service_check_for_update_cb },
 	{ "listUpgradablePackages", service_list_upgradable_packages_cb },
 	{ "runUpgrade", service_run_upgrade_cb },
+	{ "retrievePackageInfo", service_retrieve_package_info_cb },
 	{ 0, 0 }
 };
 
