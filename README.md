@@ -1,3 +1,8 @@
+NO LONGER IN USE
+=================================
+
+We're using https://github.com/webOS-ports/org.webosports.update instead
+
 org.webosinternals.service.update
 =================================
 
